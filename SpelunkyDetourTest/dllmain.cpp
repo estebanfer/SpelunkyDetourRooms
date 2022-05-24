@@ -1,16 +1,10 @@
 #include "pch.h"
 #include "detours.h"
 
-//using GenMines = void(__fastcall)(int doorRoomType, DWORD levelState, int roomIndex, char* roomOut); //original func
-using GenMines = void(int doorRoomType, int roomIndex, char* roomOut, DWORD levelState);
-
-const DWORD LVL_GEN_MINES_OFFSET = 0xcd470;
-
 const DWORD GETROOM_OFFSET = 0xd6690;
 const DWORD GETROOM_GET_ROOM_OFF = GETROOM_OFFSET + 0x29;
 const DWORD GETROOM_SPAWN_ROOM_OFF = GETROOM_OFFSET + 0x174;
 
-//GenMines* genMines{nullptr};
 void* roomGenFunc{nullptr};
 
 DWORD GetBaseAddress()
@@ -20,25 +14,6 @@ DWORD GetBaseAddress()
 
 DWORD getRoomGet = {GETROOM_GET_ROOM_OFF+GetBaseAddress()};
 DWORD getRoomSpawn = {GETROOM_SPAWN_ROOM_OFF + GetBaseAddress()};
-
-void genMinesOverride(int doorRoomType, int roomIndex, char* roomOut, DWORD levelState) {//(int doorRoomType, DWORD levelState, int roomIndex, char* roomOut) {
-    if (doorRoomType == 1)
-    {
-        strcpy_s(roomOut, 0x51, "011111111001111111100vvvvvvvv00vv0000vv0000009000001v====v1001111111101111111111");
-    }
-    else if (doorRoomType == 2)
-    {
-        strcpy_s(roomOut, 0x51, "00000000000111200100011110010021111011000000002109011111111102111111121111111111");
-    }
-    else {
-        for (int i = 0; i < 0x50; i++)
-        {
-            roomOut[i] = rand() % 3 == 0 ? '1' : '0';
-        }
-        //strcpy_s(roomOut, 0x51, "00000000000010111100000000000000011010000050000000000000000000000000001111111111");
-    };
-    return;
-}
 
 bool customRoomGet(int doorRoomType, int roomIndex, char* roomOut, DWORD levelState) {
     if (doorRoomType == 1)
@@ -62,19 +37,6 @@ bool customRoomGet(int doorRoomType, int roomIndex, char* roomOut, DWORD levelSt
 }
 
 void __declspec(naked) hookThing() {
-    __asm {
-        //level state is already pushed
-        push [esp+0x4]
-        push edi //room_dest
-        push eax //room_index
-        push edx //entrance_or_exit
-        call genMinesOverride
-        add esp, 0xc
-        ret 0x4
-    }
-}
-
-void __declspec(naked) hookThing2() {
     __asm {
         //original func code {
         sub esp, 0xbc
@@ -112,14 +74,11 @@ BOOL APIENTRY DllMain( HMODULE hModule,
                      )
 {
     if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
-        //todo
-        //genMines = (GenMines*)(GetBaseAddress() + LVL_GEN_MINES_OFFSET);
         roomGenFunc = (void*)(GetBaseAddress() + GETROOM_OFFSET);
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
 
-        //DetourAttach((void**)&genMines, hookThing);//genMinesOverride);
-        DetourAttach((void**)&roomGenFunc, hookThing2);
+        DetourAttach((void**)&roomGenFunc, hookThing);
 
         const LONG error = DetourTransactionCommit();
     }
